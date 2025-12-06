@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Examination Admission Cards - 4 per A4</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    @page { size: A4 landscape; margin: 0; }
+    body { margin:0; padding:0; font-family:'Segoe UI',sans-serif; background:#f0f0f0; }
+    #print-container { display:none; }
+
+    @media print {
+      body * { visibility:hidden; }
+      #print-container, #print-container * { visibility:visible; }
+      #print-container { position:static; }
+
+      .page-header {
+        position: absolute;
+        top: 5mm;
+        right: 8mm;
+        font-size: 8pt;
+        line-height: 1.2;
+        text-align: right;
+      }
+
+      .page{
+        position: relative;
+        width:297mm; height:210mm; page-break-after:always;
+        display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;
+        gap:1mm; padding:2mm; box-sizing:border-box; background:white;
+      }
+      .card{
+        width:100%; height:100%; border:1.5pt solid #000; padding:3mm;
+        background:white; box-sizing:border-box; page-break-inside:avoid;
+        font-size:10pt; line-height:1.3;
+      }
+      .card-header{font-size:8pt;line-height:1.2;}
+      .card-title{font-size:11pt;font-weight:bold;}
+      .label{font-weight:600;width:80px;font-size:9pt;}
+      .value{border:1px solid #000;padding:1pt 3pt;font-size:9pt;flex:1;min-height:14pt;}
+      .checkbox-grid{font-size:8pt;}
+      .checkbox-grid label{font-size:8pt;margin-right:6pt;}
+      .signature{font-size:7pt;margin-top:2pt;}
+      .signature-line{border-bottom:1px dashed #000;width:60%;margin:1pt 0;}
+      input[type=checkbox]{width:10pt;height:10pt;margin:0 2pt 0 0;accent-color:#000;}
+      #input-section,#controls,#preview,#add-modal{display:none !important;}
+    }
+
+    #preview{
+      display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+      gap:1rem; padding:1rem; max-width:1200px; margin:0 auto;
+    }
+    .preview-card{
+      border:1.5pt solid #333; background:white; padding:12pt;
+      box-shadow:0 2px 8px rgba(0,0,0,.1); break-inside:avoid;
+    }
+
+    .logoImg { width: 100px; }
+
+    #add-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    #add-modal.show { display: flex; }
+  </style>
+</head>
+<body class="p-4">
+
+<div class="max-w-4xl mx-auto space-y-6">
+
+  <!-- INPUT -->
+  <div id="input-section" class="bg-white p-6 rounded-lg shadow">
+    <h2 class="text-xl font-bold mb-3">Load Students</h2>
+
+    <!-- DOCUMENT INFO -->
+    <div class="mb-6 p-4 border rounded bg-amber-50">
+      <h3 class="font-semibold mb-2">Document Information</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+        <input id="doc-no"     placeholder="Doc No. (e.g. IJSE/EXAM/A-12)"     value="IJSE/EXAM/A-12"     class="p-2 border rounded"/>
+        <input id="doc-rev"    placeholder="Revision (e.g. 01/04-10-2025)"     value="01/04-10-2025"      class="p-2 border rounded"/>
+        <input id="doc-issue"  placeholder="Issue Date (e.g. 01/01-09-2025)"   value="01/01-09-2025"      class="p-2 border rounded"/>
+      </div>
+      <button onclick="updateDocInfo()" class="mt-2 px-3 py-1 bg-amber-600 text-white text-xs rounded hover:bg-amber-700">
+        Apply to All Cards
+      </button>
+    </div>
+
+    <!-- Excel / Paste -->
+    <div class="grid md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold mb-1">Upload Excel (.xlsx)</label>
+        <input id="excel-file" type="file" accept=".xlsx,.xls"
+               class="block w-full text-sm border rounded p-2"/>
+        <button onclick="loadExcel()"
+                class="mt-2 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+          Load Excel
+        </button>
+        <p class="text-xs text-gray-600 mt-1">
+          Expected headers: Student ID, Name, Program, Batch, Module, Exam Type,
+          Attendance (80%), Payment Completion, Eligibility
+        </p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold mb-1">Or paste tab-separated data</label>
+        <textarea id="data-input" rows="8"
+                  class="w-full p-3 border rounded text-sm font-mono"
+                  placeholder="Paste from Excel (include headers)"></textarea>
+        <button onclick="loadData()"
+                class="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+          Load Pasted Data
+        </button>
+      </div>
+    </div>
+
+    <!-- GLOBAL Program / Batch / Module / Exam Types -->
+    <div class="mt-6 p-4 border rounded bg-teal-50">
+      <h3 class="font-semibold mb-2">Set Program / Batch / Module for <strong>ALL</strong> cards</h3>
+      <div class="grid md:grid-cols-3 gap-3">
+        <input id="global-program" placeholder="Program (common)" class="p-2 border rounded" value="GDSE"/>
+        <input id="global-batch"   placeholder="Batch (common)"   class="p-2 border rounded" value="75"/>
+        <input id="global-module"  placeholder="Module (common)"  class="p-2 border rounded" value="OOP"/>
+      </div>
+      <div class="mt-4">
+        <strong>Set Exam Types for all cards:</strong>
+        <label class="ml-2"><input type="checkbox" id="global-written" checked> Written</label>
+        <label class="ml-2"><input type="checkbox" id="global-practical" checked> Practical</label>
+        <label class="ml-2"><input type="checkbox" id="global-viva"> Viva</label>
+      </div>
+      <button onclick="applyGlobalFields()"
+              class="mt-3 px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700">
+        Apply to All Cards
+      </button>
+      <p class="text-xs text-gray-600 mt-2">
+        <strong>Note:</strong> The <em>Eligibility</em> column in the file overrides Attendance + Payment checks.
+      </p>
+    </div>
+
+    <div class="mt-4 flex gap-3 flex-wrap">
+      <button onclick="printCards()"
+              class="px-5 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+        Print 4-per-Page
+      </button>
+      <button onclick="openManual()" class="px-5 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+        + Add Student Manually
+      </button>
+      <button onclick="clearAll()"
+              class="px-5 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+        Clear All
+      </button>
+    </div>
+
+    <div id="error" class="mt-3 text-sm text-red-600 hidden"></div>
+  </div>
+
+  <!-- PREVIEW -->
+  <div id="preview" class="hidden"></div>
+
+</div>
+
+<!-- MANUAL ADD MODAL -->
+<div id="add-modal">
+  <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+    <h3 class="text-lg font-semibold mb-4">Add Student Manually</h3>
+    <div class="grid gap-3 text-sm">
+      <input id="m-id"        placeholder="Student ID *"   class="p-2 border rounded"/>
+      <input id="m-name"      placeholder="Name *"        class="p-2 border rounded"/>
+      <input id="m-program"   placeholder="Program"       class="p-2 border rounded"/>
+      <input id="m-batch"     placeholder="Batch"         class="p-2 border rounded"/>
+      <input id="m-module"    placeholder="Module"        class="p-2 border rounded"/>
+      <div class="flex gap-2 flex-wrap">
+        <label><input type="checkbox" id="m-written" checked> Written</label>
+        <label><input type="checkbox" id="m-practical" checked> Practical</label>
+        <label><input type="checkbox" id="m-viva"> Viva</label>
+      </div>
+      <div class="flex gap-2">
+        <label><input type="checkbox" id="m-attendance" checked> Attendance (80%)</label>
+        <label><input type="checkbox" id="m-payment" checked> Payment Completed</label>
+      </div>
+    </div>
+    <div class="mt-4 flex gap-2 justify-end">
+      <button onclick="closeManual()" class="px-3 py-1 bg-gray-500 text-white rounded">Cancel</button>
+      <button onclick="saveManual()"   class="px-3 py-1 bg-green-600 text-white rounded">Add Student</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRINT CONTAINER -->
+<div id="print-container"></div>
+
+<script>
+  let eligibleStudents = [];
+  let global = { program:'', batch:'', module:'', written:true, practical:true, viva:false };
+  let docInfo = { doc: 'IJSE/EXAM/A-12', rev: '01/04-10-2025', issue: '01/01-09-2025' };
+
+  function setError(msg){
+    const el=document.getElementById('error');
+    if(!msg){el.classList.add('hidden');el.textContent='';}
+    else{el.classList.remove('hidden');el.textContent=msg;}
+  }
+
+  function normalizeHeader(h){
+    return String(h||'').toLowerCase()
+      .replace(/\(.*?\)/g,'').replace(/\s+/g,' ').trim()
+      .replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,'_');
+  }
+
+  function buildKeyMap(headers){
+    const map={};
+    headers.forEach((h,idx)=>{
+      const n=normalizeHeader(h);
+      if(['student_id','id','student_no','index_no'].some(k=>n.includes(k))) map.id=idx;
+      else if(n.includes('name')) map.name=idx;
+      else if(['program','course'].some(k=>n.includes(k))) map.program=idx;
+      else if(n.includes('batch')) map.batch=idx;
+      else if(['module','subject'].some(k=>n.includes(k))) map.module=idx;
+      else if(['exam_type','exam'].some(k=>n.includes(k))) map.examType=idx;
+      else if(n.includes('attendance')) map.attendance=idx;
+      else if(n.includes('payment')) map.payment=idx;
+      else if(['eligibility','eligible'].some(k=>n.includes(k))) map.eligibility=idx;
+    });
+    return map;
+  }
+
+  function rowValue(cols,idx){ return (idx!=null && idx<cols.length)?String(cols[idx]).trim():''; }
+
+  function applyGlobalFields(){
+    global.program   = document.getElementById('global-program').value.trim();
+    global.batch     = document.getElementById('global-batch').value.trim();
+    global.module    = document.getElementById('global-module').value.trim();
+    global.written   = document.getElementById('global-written').checked;
+    global.practical = document.getElementById('global-practical').checked;
+    global.viva      = document.getElementById('global-viva').checked;
+    renderPreview();
+  }
+
+  function updateDocInfo(){
+    docInfo.doc    = document.getElementById('doc-no').value.trim()    || 'IJSE/EXAM/A-12';
+    docInfo.rev    = document.getElementById('doc-rev').value.trim()   || '01/04-10-2025';
+    docInfo.issue  = document.getElementById('doc-issue').value.trim() || '01/01-09-2025';
+    renderPreview();
+  }
+
+  function isEligible(attendance, payment, eligibility){
+    if (/eligible/i.test(eligibility)) return true;
+    const attOk = attendance && /completed/i.test(attendance);
+    const payOk = payment   && /completed/i.test(payment);
+    return attOk && payOk;
+  }
+
+  async function loadExcel(){
+    setError('');
+    const input=document.getElementById('excel-file');
+    if(!input.files||!input.files[0]) return alert('Choose an Excel file first.');
+    const file=input.files[0];
+    try{
+      const data=await file.arrayBuffer();
+      const wb=XLSX.read(data,{type:'array'});
+      let students = [];
+
+      for (let sheetName of wb.SheetNames){
+        const ws=wb.Sheets[sheetName];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false});
+        if(!rows.length) continue;
+
+        let headerIdx = rows.findIndex(r=>r && r.join(' ').toLowerCase().match(/student.*name/));
+        if (headerIdx<0) headerIdx=0;
+        const headers=rows[headerIdx].map(h=>String(h||'').trim());
+        const keyMap=buildKeyMap(headers);
+        if(keyMap.id==null||keyMap.name==null) continue;
+
+        for(let i=headerIdx+1;i<rows.length;i++){
+          const cols=(rows[i]||[]).map(c=>c==null?'':String(c).trim());
+          if(!cols.length) continue;
+          const s={
+            id:rowValue(cols,keyMap.id),
+            name:rowValue(cols,keyMap.name),
+            program:rowValue(cols,keyMap.program),
+            batch:rowValue(cols,keyMap.batch),
+            module:rowValue(cols,keyMap.module),
+            examType:rowValue(cols,keyMap.examType),
+            attendance:rowValue(cols,keyMap.attendance),
+            payment:rowValue(cols,keyMap.payment),
+            eligibility:rowValue(cols,keyMap.eligibility)
+          };
+          if(!s.id && !s.name) continue;
+          if(isEligible(s.attendance, s.payment, s.eligibility)){
+            students.push(s);
+          }
+        }
+      }
+
+      eligibleStudents = students;
+      renderPreview();
+      document.getElementById('preview').classList.remove('hidden');
+    }catch(e){ console.error(e); setError('Excel error: '+e.message); }
+  }
+
+  function loadData(){
+    setError('');
+    const txt=document.getElementById('data-input').value.trim();
+    if(!txt) return alert('Paste data first.');
+    const lines=txt.split('\n').map(l=>l.trim()).filter(l=>l);
+    if(lines.length<2) return setError('Need header + data rows.');
+
+    const headerIdx=lines.findIndex(l=>/student/i.test(l)&&/name/i.test(l));
+    const headers=lines[headerIdx>=0?headerIdx:0].split('\t').map(h=>h.trim());
+    const keyMap=buildKeyMap(headers);
+    if(keyMap.id==null||keyMap.name==null) return setError('Missing "Student ID" or "Name".');
+
+    eligibleStudents=[];
+    for(let i=(headerIdx>=0?headerIdx:0)+1;i<lines.length;i++){
+      const cols=lines[i].split('\t').map(c=>String(c||'').trim());
+      if(!cols.length) continue;
+      const s={
+        id:rowValue(cols,keyMap.id),
+        name:rowValue(cols,keyMap.name),
+        program:rowValue(cols,keyMap.program),
+        batch:rowValue(cols,keyMap.batch),
+        module:rowValue(cols,keyMap.module),
+        examType:rowValue(cols,keyMap.examType),
+        attendance:rowValue(cols,keyMap.attendance),
+        payment:rowValue(cols,keyMap.payment),
+        eligibility:rowValue(cols,keyMap.eligibility)
+      };
+      if(!s.id && !s.name) continue;
+      if(isEligible(s.attendance, s.payment, s.eligibility)){
+        eligibleStudents.push(s);
+      }
+    }
+    renderPreview();
+    document.getElementById('preview').classList.remove('hidden');
+  }
+
+  function openManual() { document.getElementById('add-modal').classList.add('show'); }
+  function closeManual() { document.getElementById('add-modal').classList.remove('show'); }
+  function saveManual() {
+    const s = {
+      id:          document.getElementById('m-id').value.trim(),
+      name:        document.getElementById('m-name').value.trim(),
+      program:     document.getElementById('m-program').value.trim(),
+      batch:       document.getElementById('m-batch').value.trim(),
+      module:      document.getElementById('m-module').value.trim(),
+      attendance:  document.getElementById('m-attendance').checked ? 'Completed' : '',
+      payment:     document.getElementById('m-payment').checked ? 'Completed' : '',
+      eligibility: ''
+    };
+
+    if (!s.id || !s.name) { alert('Student ID and Name are required.'); return; }
+
+    if (isEligible(s.attendance, s.payment, s.eligibility)) {
+      eligibleStudents.push(s);
+      renderPreview();
+      document.getElementById('preview').classList.remove('hidden');
+      closeManual();
+      ['m-id','m-name','m-program','m-batch','m-module'].forEach(id=>document.getElementById(id).value='');
+      document.getElementById('m-attendance').checked = true;
+      document.getElementById('m-payment').checked = true;
+    } else {
+      alert('Student not eligible. Check Attendance and Payment.');
+    }
+  }
+
+  function renderPreview(){
+    const preview=document.getElementById('preview');
+    preview.innerHTML = eligibleStudents.length===0
+      ? '<p class="text-gray-500 text-center col-span-full">No eligible students found.</p>'
+      : eligibleStudents.map(st=>`
+        <div class="preview-card">
+          <div class="flex justify-between text-xs card-header">
+            <div><img class="logoImg" alt="IJSE Logo" src="assets/WhatsApp%20Image%202025-11-01%20at%2013.31.25.jpeg"></div>
+            <div class="text-right">
+              <div>Doc: ${docInfo.doc}</div>
+              <div>Rev: ${docInfo.rev}</div>
+              <div>Issue: ${docInfo.issue}</div>
+            </div>
+          </div>
+          <h3 class="card-title text-center uppercase border-t border-b border-black py-1 my-1 text-sm">Examination Admission Card</h3>
+          <table class="w-full text-left text-xs mt-1">
+            <tr><td class="label">Name</td><td class="value">${st.name}</td></tr>
+            <tr><td class="label">ID</td><td class="value">${st.id}</td></tr>
+            <tr><td class="label">Program</td><td class="value">${st.program||global.program||''}</td></tr>
+            <tr><td class="label">Batch</td><td class="value">${st.batch||global.batch||''}</td></tr>
+            <tr><td class="label">Module</td><td class="value">${st.module||global.module||''}</td></tr>
+          </table>
+          <div class="checkbox-grid mt-2 text-xs">
+            <div><strong>Exam Type:</strong>
+              <label class="ml-1"><input type="checkbox" ${global.written ? 'checked' : ''} disabled> Written</label>
+              <label class="ml-1"><input type="checkbox" ${global.practical ? 'checked' : ''} disabled> Practical</label>
+              <label class="ml-1"><input type="checkbox" ${global.viva ? 'checked' : ''} disabled> Viva</label>
+            </div>
+            <div class="mt-1"><strong>Eligible Check:</strong>
+             <label><input type="checkbox"${st.attendance && st.attendance.toLowerCase() !== 'not completed' ? 'checked' : ''} disabled> <strong>Attendance</strong></label>
+             <label><input type="checkbox"${st.payment && st.payment.toLowerCase() !== 'not completed' ? 'checked' : ''} disabled> <strong>Finance</strong></label> </div>
+          </div>
+          <div class="flex justify-between mt-3 text-xs">
+            <div><br><br>
+              <div class="signature">Admission Issued by:</div>
+              <br>
+              <br><div class="signature">Signature</div>
+            </div>
+          </div>
+        </div>`).join('');
+  }
+
+  function printCards(){
+    if(!eligibleStudents.length) return alert('No eligible students to print.');
+
+    const container=document.getElementById('print-container');
+    container.innerHTML='';
+
+    const total=eligibleStudents.length;
+    const padded=Math.ceil(total/4)*4;
+    const list=[...eligibleStudents, ...Array(padded-total).fill(null)];
+
+    for(let i=0;i<list.length;i+=4){
+      const page=list.slice(i,i+4);
+      let html=`
+        <div class="page">
+          <div class="page-header">
+
+          </div>
+      `;
+
+      page.forEach(st=>{
+        const empty=!st;
+        const prog = empty ? '' : (st.program || global.program || '');
+        const bat  = empty ? '' : (st.batch   || global.batch   || '');
+        const mod  = empty ? '' : (st.module  || global.module  || '');
+        html+=`<div class="preview-card">
+          <div class="flex justify-between text-xs card-header">
+            <div><img class="logoImg" alt="IJSE Logo" src="assets/WhatsApp%20Image%202025-11-01%20at%2013.31.25.jpeg"></div>
+            <div class="text-right">
+              <div>Doc: ${docInfo.doc}</div>
+              <div>Rev: ${docInfo.rev}</div>
+              <div>Issue: ${docInfo.issue}</div>
+            </div>
+          </div>
+          <h3 class="card-title text-center uppercase border-t border-b border-black py-1 my-1 text-sm">Examination Admission Card</h3>
+          <table class="w-full text-left text-xs mt-1">
+            <tr><td class="label">Name</td><td class="value">${st.name}</td></tr>
+            <tr><td class="label">ID</td><td class="value">${st.id}</td></tr>
+            <tr><td class="label">Program</td><td class="value">${st.program||global.program||''}</td></tr>
+            <tr><td class="label">Batch</td><td class="value">${st.batch||global.batch||''}</td></tr>
+            <tr><td class="label">Module</td><td class="value">${st.module||global.module||''}</td></tr>
+          </table>
+          <div class="checkbox-grid mt-2 text-xs">
+            <div><strong>Exam Type:</strong>
+              <label class="ml-1"><input type="checkbox" ${global.written ? 'checked' : ''}> Written</label>
+              <label class="ml-1"><input type="checkbox" ${global.practical ? 'checked' : ''}> Practical</label>
+              <label class="ml-1"><input type="checkbox" ${global.viva ? 'checked' : ''}> Viva</label>
+            </div>
+            <div class="mt-1"><strong>Eligible Check:</strong>
+             <label><input type="checkbox"${st.attendance && st.attendance.toLowerCase() !== 'not completed' ? 'checked' : ''}> <strong>Attendance</strong></label>
+             <label><input type="checkbox"${st.payment && st.payment.toLowerCase() !== 'not completed' ? 'checked' : ''}> <strong>Finance</strong></label> </div>
+          </div>
+          <div class="flex justify-between mt-3 text-xs">
+            <div><br><br>
+              <div class="signature">Admission Issued by:</div>
+              <br>
+              <br><div class="signature">Signature</div>
+            </div>
+          </div>
+        </div>`;
+      });
+      html+='</div>';
+      container.innerHTML+=html;
+    }
+
+    container.style.display='block';
+    window.print();
+    window.onafterprint=()=>{ container.style.display='none'; };
+  }
+
+  function clearAll(){
+    document.getElementById('data-input').value='';
+    document.getElementById('excel-file').value='';
+    document.getElementById('global-program').value='';
+    document.getElementById('global-batch').value='';
+    document.getElementById('global-module').value='';
+    document.getElementById('global-written').checked = true;
+    document.getElementById('global-practical').checked = true;
+    document.getElementById('global-viva').checked = false;
+    document.getElementById('doc-no').value = 'IJSE/EXAM/A-12';
+    document.getElementById('doc-rev').value = '01/04-10-2025';
+    document.getElementById('doc-issue').value = '01/01-09-2025';
+    updateDocInfo();
+    document.getElementById('preview').classList.add('hidden');
+    eligibleStudents=[];
+    global={program:'',batch:'',module:'',written:true,practical:true,viva:false};
+    setError('');
+    closeManual();
+  }
+
+  window.onload=()=>{ updateDocInfo(); };
+</script>
+
+</body>
+</html>
