@@ -83,7 +83,7 @@
     <div class="mb-6 p-4 border rounded bg-amber-50">
       <h3 class="font-semibold mb-2">Document Information</h3>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-        <input id="doc-no"     placeholder="Doc No. (e.g. IJSE/EXAM/A-12)"     value="IJSE/EXAM/A-12"     class="p-2 border rounded"/>
+        <input id="doc-no"     placeholder="Doc No. (e.g. FO-EXM-12"     value="FO-EXM-12"     class="p-2 border rounded"/>
         <input id="doc-rev"    placeholder="Revision (e.g. 01/04-10-2025)"     value="01/04-10-2025"      class="p-2 border rounded"/>
         <input id="doc-issue"  placeholder="Issue Date (e.g. 01/01-09-2025)"   value="01/01-09-2025"      class="p-2 border rounded"/>
       </div>
@@ -198,7 +198,7 @@
 <script>
   let eligibleStudents = [];
   let global = { program:'', batch:'', module:'', written:true, practical:true, viva:false };
-  let docInfo = { doc: 'IJSE/EXAM/A-12', rev: '01/04-10-2025', issue: '01/01-09-2025' };
+  let docInfo = { doc: 'FO-EXM-12', rev: '01/04-10-2025', issue: '01/01-09-2025' };
 
   function setError(msg){
     const el=document.getElementById('error');
@@ -242,7 +242,7 @@
   }
 
   function updateDocInfo(){
-    docInfo.doc    = document.getElementById('doc-no').value.trim()    || 'IJSE/EXAM/A-12';
+    docInfo.doc    = document.getElementById('doc-no').value.trim()    || 'FO-EXM-12';
     docInfo.rev    = document.getElementById('doc-rev').value.trim()   || '01/04-10-2025';
     docInfo.issue  = document.getElementById('doc-issue').value.trim() || '01/01-09-2025';
     renderPreview();
@@ -375,7 +375,7 @@
       : eligibleStudents.map(st=>`
         <div class="preview-card">
           <div class="flex justify-between text-xs card-header">
-            <div><img class="logoImg" alt="IJSE Logo" src="assets/ijseLogo.jpeg"></div>
+            <div><img class="logoImg" alt="IJSE Logo" src="assets/WhatsApp%20Image%202025-11-01%20at%2013.31.25.jpeg"></div>
             <div class="text-right">
               <div>Doc: ${docInfo.doc}</div>
               <div>Rev: ${docInfo.rev}</div>
@@ -436,7 +436,7 @@
         const mod  = empty ? '' : (st.module  || global.module  || '');
         html+=`<div class="preview-card">
           <div class="flex justify-between text-xs card-header">
-            <div><img class="logoImg" alt="IJSE Logo" src="assets/ijseLogo.jpeg"></div>
+            <div><img class="logoImg" alt="IJSE Logo" src="assets/WhatsApp%20Image%202025-11-01%20at%2013.31.25.jpeg"></div>
             <div class="text-right">
               <div>Doc: ${docInfo.doc}</div>
               <div>Rev: ${docInfo.rev}</div>
@@ -478,7 +478,7 @@
     window.print();
     window.onafterprint=()=>{ container.style.display='none'; };
   }
-  // shasidu malshan
+
   function clearAll(){
     document.getElementById('data-input').value='';
     document.getElementById('excel-file').value='';
@@ -488,7 +488,7 @@
     document.getElementById('global-written').checked = true;
     document.getElementById('global-practical').checked = true;
     document.getElementById('global-viva').checked = false;
-    document.getElementById('doc-no').value = 'IJSE/EXAM/A-12';
+    document.getElementById('doc-no').value = 'FO-EXM-12';
     document.getElementById('doc-rev').value = '01/04-10-2025';
     document.getElementById('doc-issue').value = '01/01-09-2025';
     updateDocInfo();
